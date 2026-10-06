@@ -12,7 +12,7 @@ import { bridgeStatus, call } from '../../src/bridge.js';
 import { pluginParamNames } from '../../src/plugins.js';
 import { arranger, listMacros, runMacro } from '../../src/arranger.js';
 import { tempo } from '../../src/tempo.js';
-import { trackEdit, addBus, trackTask, addPlugin, addInstrumentTrack } from '../../src/tracks.js';
+import { trackEdit, addBus, trackTask, addPlugin, addInstrumentTrack, addTrack, trackState } from '../../src/tracks.js';
 import { liveEvents } from '../../src/events.js';
 import { timeSignature } from '../../src/signatures.js';
 import { readSong } from '../../src/song.js';
@@ -343,7 +343,7 @@ test('trackState mute toggles the channel, and toggling again restores it', asyn
   const track = await uniqueNamed();
   const muteOf = async () => (await call('channels')).find((c) => c.label === track.channel).mute;
   const before = await muteOf();
-  const r = await call('trackState', { track: track.name, action: 'mute' });
+  const r = await trackState(call, { track: track.name, action: 'mute' });
   try {
     assert.equal(r.channel.mute, before ? 0 : 1);
   } finally {
@@ -373,7 +373,7 @@ test('addTrack, then undo removes it; selection restored', async () => {
   const song0 = await call('song');
   const n0 = song0.trackCount;
   const base = await counts();
-  const r = await call('addTrack', { type: 'audioMono' });
+  const r = await addTrack(call, { type: 'audioMono' });
   try {
     assert.equal(r.trackCount, n0 + 1);
   } finally {

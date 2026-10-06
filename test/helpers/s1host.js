@@ -40,8 +40,10 @@ export function fakeDocument({ title = 'Live Song', tracks = [], tempo = 120 } =
   const metronome = { params: metro, findParameter: (n) => metro[n] || null };
   const consoleChannels = tracks.map((t) => {
     const inserted = [];
-    return { label: t.channel || t.name, inserted, find: (n) => (n === 'Inserts' ? { insertDeviceClass: (cls) => (inserted.push(cls), {}) } : null) };
+    return { label: t.channel || t.name, mediaType: 'Audio', inserted, find: (n) => (n === 'Inserts' ? { insertDeviceClass: (cls) => (inserted.push(cls), {}) } : null) };
   });
+  // Studio Pro 8 also lists an instrument track's note channel, under the track's name.
+  for (const t of tracks) if (t.noteChannel) consoleChannels.push({ label: t.name, mediaType: 'Music', inserted: [], find: () => null });
   // takeEvents: one events array per take; `events` is shorthand for a single take.
   const makeTrack = (t, i) => {
     const takes = (t.takeEvents || [t.events || []]).map((list) => list.map((e) => ({ ...e })));

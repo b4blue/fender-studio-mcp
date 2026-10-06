@@ -144,13 +144,16 @@ function mtoChannel(context, label) {
 	if (!mtoFn(con, "getChannelList")) return { error: "the mixer console is not available" };
 	var list = con.getChannelList(1);
 	if (!list || !mtoFn(list, "getChannel")) return { error: "the mixer console is not available" };
-	var hit = null, n = 0;
+	// Studio Pro 8 also lists each instrument track's note channel (mediaType
+	// "Music") under the same label as its audio channel; the audio one is meant.
+	var hits = [], audio = [];
 	for (var i = 0; i < list.numChannels; i++) {
 		var c = list.getChannel(i);
-		if (c && c.label === label) { hit = c; n++; }
+		if (c && c.label === label) { hits.push(c); if (c.mediaType === "Audio") audio.push(c); }
 	}
-	if (n !== 1) return { error: n ? "channel name is ambiguous: " + label : "no channel named " + label };
-	return { channel: hit };
+	if (hits.length > 1 && audio.length === 1) hits = audio;
+	if (hits.length !== 1) return { error: hits.length ? "channel name is ambiguous: " + label : "no channel named " + label };
+	return { channel: hits[0] };
 }
 
 function mtoDeviceFunctions(context) {

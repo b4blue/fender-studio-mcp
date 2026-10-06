@@ -413,11 +413,15 @@ class Bridge {
         if (!con || !has(con, "getChannelList", "function")) return fail("the mixer console is not available");
         const list = con.getChannelList(1);
         if (!list || !has(list, "getChannel", "function")) return fail("the mixer console is not available");
-        const hits = [];
+        // Studio Pro 8 also lists each instrument track's note channel (mediaType
+        // "Music") under the same label as its audio channel; the audio one is meant.
+        let hits = [];
         for (let i = 0; i < list.numChannels; i++) {
             const c = list.getChannel(i);
             if (c && c.label === label) hits.push(c);
         }
+        const audio = hits.filter(c => c.mediaType === "Audio");
+        if (hits.length > 1 && audio.length === 1) hits = audio;
         if (hits.length !== 1) return fail(hits.length ? "channel name is ambiguous: " + label : "no channel named " + label);
         return hits[0];
     }

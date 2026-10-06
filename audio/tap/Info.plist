@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key>CFBundleIdentifier</key>
+	<string>dev.studio-one-mcp.s1tap</string>
+	<key>CFBundleName</key>
+	<string>s1tap</string>
+	<key>NSAudioCaptureUsageDescription</key>
+	<string>studio-one-mcp records Studio One's output to measure the mix.</string>
+</dict>
+</plist>

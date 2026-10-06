@@ -58,7 +58,13 @@ function mteChannels(consoleObj) {
 		if (label === null) continue;
 		out.push({ label: label, channel: ch });
 	}
-	return out;
+	// Studio Pro 8 also lists each instrument track's note channel (mediaType
+	// "Music") under the same label as its audio channel; keep the audio one.
+	var audio = {};
+	for (var a = 0; a < out.length; a++) if (out[a].channel.mediaType === "Audio") audio[out[a].label] = true;
+	var kept = [];
+	for (var b = 0; b < out.length; b++) if (!(out[b].channel.mediaType === "Music" && audio[out[b].label])) kept.push(out[b]);
+	return kept;
 }
 
 function mteTracks(context) {

@@ -36,7 +36,8 @@ export function pickMidiPort(names, preferred = process.env.STUDIO_ONE_MCP_MIDI_
 
 export function studioOneRunning() {
   try {
-    if (isMac) return execFileSync('pgrep', ['-x', 'studioapp'], { encoding: 'utf8' }).trim().length > 0;
+    // Studio One 5–7 run as "studioapp"; Studio Pro 8 as "Studio Pro".
+    if (isMac) return execFileSync('pgrep', ['-f', '/Contents/MacOS/(studioapp|Studio Pro)( |$)'], { encoding: 'utf8' }).trim().length > 0;
     if (isWindows) return /Studio One|Studio Pro/i.test(execFileSync('tasklist', { encoding: 'utf8' }));
   } catch {
     return false;

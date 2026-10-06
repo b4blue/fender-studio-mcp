@@ -2,3 +2,6 @@ node_modules/
 .DS_Store
 *.tmp
 .claude/
+audio/bin/
+audio/.venv/
+__pycache__/

@@ -43,6 +43,8 @@ export async function runChecks({ profile, live = true } = {}) {
   const midi = midiOutputs();
   const port = pickMidiPort(midi.names);
   if (!midi.ok) add('MIDI', FAIL, midi.error, 'Run npm install in the studio-one-mcp folder');
+  else if (!port && isMac && !process.env.STUDIO_ONE_MCP_MIDI_PORT)
+    add('Virtual MIDI port', PASS, 'no IAC bus; the server publishes its own port "studio-one-mcp" while it runs', null);
   else if (!port)
     add('Virtual MIDI port', FAIL, `outputs: ${midi.names.join(', ') || 'none'}`, isMac
       ? 'Audio MIDI Setup → Window → Show MIDI Studio → IAC Driver → tick "Device is online"'

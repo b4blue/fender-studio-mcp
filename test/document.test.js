@@ -151,6 +151,14 @@ test('plugins: names from the plug-in picker (duplicates once), filtered; addPlu
   assert.match(ask('addPlugin', { channel: 'Gtr', plugin: 'Pro EQ' }).error, /ambiguous/);
 });
 
+test("addPlugin: an instrument track's note channel (Studio Pro 8) does not make its name ambiguous", () => {
+  const plugins = [{ name: 'Pro EQ', id: '{EQ}' }];
+  const { ask, doc } = setup({ plugins, tracks: [{ name: 'Bass', mediaType: 'Music', noteChannel: true }] });
+  assert.equal(doc.consoleChannels.length, 2);
+  assert.equal(plain(ask('addPlugin', { channel: 'Bass', plugin: 'Pro EQ' }).result).added, 'Pro EQ');
+  assert.deepEqual(doc.consoleChannels[0].inserted, ['{EQ}'], 'on the audio channel');
+});
+
 test('metronome: read, set booleans and precount bars, validate range', () => {
   const { ask } = setup();
   assert.deepEqual(plain(ask('metronome', {}).result), { click: true, precount: false, preroll: false, precountBars: 1 });

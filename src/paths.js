@@ -18,7 +18,14 @@ export function studioOneProfiles() {
     if (!existsSync(r)) continue;
     for (const d of readdirSync(r)) if (/^Studio (One|Pro)/.test(d)) out.push(join(r, d));
   }
-  return out.sort().reverse(); // newest version first
+  return out.sort(byVersionDesc); // newest version first
+}
+
+// "Studio Pro 8" > "Studio One 6" > "Studio One 5": compare the version number in
+// the folder name, not the whole path (…/Fender/… sorts before …/PreSonus/…).
+function byVersionDesc(a, b) {
+  const v = (p) => Number((p.match(/Studio (?:One|Pro)\D*(\d+)[^\\/]*$/) || [])[1] || 0);
+  return v(b) - v(a) || b.localeCompare(a);
 }
 
 export function songRoots() {
@@ -36,7 +43,7 @@ export function studioOneApps() {
     if (!existsSync(r)) continue;
     for (const d of readdirSync(r)) if (/^Studio (One|Pro)/.test(d)) out.push(isMac ? join(r, d, 'Contents') : join(r, d));
   }
-  return out.sort().reverse();
+  return out.sort(byVersionDesc);
 }
 
 // Where plug-in presets live: the user's own first, then the factory ones.

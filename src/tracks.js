@@ -4,6 +4,8 @@
 //  - Remove Track is one undo step and asked nothing for an empty track;
 //  - Track/Group Selected Tracks opens a name dialog, so grouping is not offered.
 
+import { PLUGIN_SETTLE_MS, sleep, until } from './settle.js';
+
 const hex = (rgb) => `#${(rgb & 0xffffff).toString(16).padStart(6, '0')}`;
 export const toArgb = (color) => {
   const m = /^#?([0-9a-f]{6})$/i.exec(String(color));
@@ -110,16 +112,18 @@ export async function trackEdit(call, { track, action, name, color, to, folder, 
 
 // An instrument track with a new instance of an instrument (live_plugins with
 // kind instrument lists them). One undo step removes both (checked on 5.5.2).
-export async function addInstrumentTrack(call, { instrument, name }) {
+export async function addInstrumentTrack(call, { instrument, name }, { settleMs = PLUGIN_SETTLE_MS } = {}) {
   const r = await trackTask(call, { op: 'addInstrumentTrack', instrument, name });
+  await sleep(settleMs); // see settle.js: a new plug-in must not be undone while it is being set up
   return { track: r.track, instrument: r.instrument, channel: r.channel, connected: r.connected, note: 'One live_undo removes the track and the instrument.' };
 }
 
 // A plug-in on a channel's inserts, through DeviceEditFunctions like Studio One's
 // own Insert FX task: unlike the insert folder's own insertDeviceClass, this is
 // on the undo stack.
-export async function addPlugin(call, { channel, plugin }) {
+export async function addPlugin(call, { channel, plugin }, { settleMs = PLUGIN_SETTLE_MS } = {}) {
   const r = await trackTask(call, { op: 'addPlugin', channel, plugin });
+  await sleep(settleMs); // see settle.js: a new plug-in must not be undone while it is being set up
   const [rack] = await call('inserts', { channel });
   return { channel, added: r.added, inserts: rack ? rack.inserts : null, note: 'One live_undo removes it.' };
 }
@@ -127,10 +131,39 @@ export async function addPlugin(call, { channel, plugin }) {
 // An effect on a channel's sends: Studio One makes an FX channel with the plug-in
 // and a send to it. Sending to an existing bus or FX channel is not reachable
 // from scripts on 5.5.2, and this did not come off with one undo.
-export async function addFxSend(call, { channel, plugin }) {
+export async function addFxSend(call, { channel, plugin }, { settleMs = PLUGIN_SETTLE_MS } = {}) {
   const before = new Set((await call('channels')).map((c) => c.label));
   const r = await trackTask(call, { op: 'addFxSend', channel, plugin });
+  await sleep(settleMs);
   const fx = (await call('channels')).filter((c) => !before.has(c.label)).map((c) => c.label);
   const [s] = await call('sends', { channel });
   return { channel, plugin: r.added, fxChannel: fx[0] ?? null, sends: s ? s.sends : [], note: 'Not reliably undone by live_undo: remove the send and FX channel in Studio One, or mute the send with live_set_send.' };
+}
+
+// Add a track. On Studio Pro 8 the track appears just after the bridge answers,
+// so read until it is there rather than trusting the answer's count.
+export async function addTrack(call, args = {}) {
+  const count0 = (await call('song')).trackCount;
+  const names0 = (await call('tracks', { events: false })).map((t) => t.name);
+  const r = await call('addTrack', args);
+  if (r.trackCount !== count0 && r.added.length) return r;
+  const tracks = await until(() => call('tracks', { events: false }), (ts) => ts.length !== names0.length);
+  const left = [...names0];
+  const added = tracks.map((t) => t.name).filter((n) => { const i = left.indexOf(n); if (i < 0) return true; left.splice(i, 1); return false; });
+  return { added, trackCount: (await call('song')).trackCount };
+}
+
+// Toggle arm/monitor/mute/solo on a track. On Studio Pro 8 the toggle lands just
+// after the bridge answers, so read the channel until it differs from before.
+const TOGGLES = { arm: 'recordArmed', monitor: 'monitor', mute: 'mute', solo: 'solo' };
+export async function trackState(call, args) {
+  const field = TOGGLES[args.action];
+  if (!field) return call('trackState', args);
+  const label = (await findTrack(call, args.track)).channel;
+  const read = async () => (await call('channels')).find((c) => c.label === label) || null;
+  const before = await read();
+  const r = await call('trackState', args);
+  if (!before || (r.channel && r.channel[field] !== before[field])) return r;
+  const channel = await until(read, (c) => !c || c[field] !== before[field]);
+  return { ...r, channel };
 }

@@ -63,7 +63,10 @@ export async function setup(argv = []) {
     // 3. Virtual MIDI port
     step(3, 'Virtual MIDI port (the bridge\'s doorbell)');
     let port = pickMidiPort(midiOutputs().names);
-    if (!port) {
+    if (!port && isMac && !process.env.STUDIO_ONE_MCP_MIDI_PORT) {
+      say('   No IAC bus: the server will publish its own MIDI port, "studio-one-mcp", while it runs.');
+      say('   (Or turn on the IAC Driver: Audio MIDI Setup → Window → Show MIDI Studio → IAC Driver → "Device is online".)');
+    } else if (!port) {
       if (isMac) {
         say('   Turn on the IAC Driver: Audio MIDI Setup → Window → Show MIDI Studio → double-click IAC Driver → tick "Device is online".');
         if (!dry && (await ask('   Open Audio MIDI Setup now?'))) spawnSync('open', ['-a', 'Audio MIDI Setup']);
@@ -78,7 +81,8 @@ export async function setup(argv = []) {
         }
       }
     }
-    say(port ? `   Using "${port}".` : '   No virtual MIDI port yet; the live_* tools will not work until there is one.');
+    if (port) say(`   Using "${port}".`);
+    else if (!isMac || process.env.STUDIO_ONE_MCP_MIDI_PORT) say('   No virtual MIDI port yet; the live_* tools will not work until there is one.');
 
     // 4. MCP clients
     step(4, 'Register with your MCP client');
@@ -108,7 +112,7 @@ export async function setup(argv = []) {
     if (changedDevice && running) say('   Studio One is running: quit and reopen it so it loads the new device files.');
     say('   Once, if MCP Bridge is not listed yet:');
     say(`     Studio One → ${isMac ? 'Preferences… (⌘,)' : 'Options'} → External Devices → Add… → studio-one-mcp → MCP Bridge`);
-    say(`     Receive From: ${port || 'your virtual MIDI port'}    Send To: None`);
+    say(`     Receive From: ${port || (isMac ? 'studio-one-mcp' : 'your virtual MIDI port')}    Send To: None`);
 
     // 6. Verify
     step(6, 'Check the connection');

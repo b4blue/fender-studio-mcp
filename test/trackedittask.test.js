@@ -64,6 +64,23 @@ test('route connects one channel to another channel\'s input; names must be uniq
   assert.match(r[2].error, /no channel named Nowhere/);
 });
 
+test("route: an instrument track's note channel (Studio Pro 8) does not make its name ambiguous", () => {
+  const t = load();
+  const s = studio();
+  const channels = s.context.functions.root.environment.find('MixerConsole').getChannelList();
+  for (let i = 0; i < channels.numChannels; i++) channels.getChannel(i).mediaType = 'Audio';
+  const list = [];
+  for (let i = 0; i < channels.numChannels; i++) list.push(channels.getChannel(i));
+  list.push({ label: 'Vox', mediaType: 'Music' }, { label: 'Gtr', mediaType: 'Music' }, { label: 'Gtr', mediaType: 'Audio' });
+  s.context.functions.root.environment.find = () => ({ getChannelList: () => ({ numChannels: list.length, getChannel: (i) => list[i] }) });
+  t.request([{ op: 'route', channel: 'Vox', to: 'Bus 1' }, { op: 'route', channel: 'Gtr', to: 'Main' }]);
+  t.task.performEdit(s.context);
+  const r = t.result().results;
+  assert.equal(r[0].done, true, JSON.stringify(r));
+  assert.deepEqual(s.connected, [['Vox', 'Bus 1']], 'the audio channel');
+  assert.match(r[1].error, /ambiguous: Gtr/, 'two audio channels with one name still are');
+});
+
 test('folder moves named tracks into a folder track; probe describes what it finds', () => {
   const t = load();
   const s = studio();

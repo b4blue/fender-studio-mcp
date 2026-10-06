@@ -13,11 +13,12 @@ import { readSong, summarizeSong } from './song.js';
 import { fileURLToPath } from 'node:url';
 import { listSongs, resolveSong, songFolder } from './library.js';
 import { bridgeStatus, call } from './bridge.js';
-import { midiPort } from './midi.js';
+import { midiPort, openEarly } from './midi.js';
 import { pluginParamNames } from './plugins.js';
 import { arranger, listMacros, runMacro } from './arranger.js';
 import { tempo } from './tempo.js';
-import { trackEdit, addBus, trackTask, addInstrumentTrack, addPlugin, addFxSend } from './tracks.js';
+import { trackEdit, addBus, trackTask, addInstrumentTrack, addPlugin, addFxSend, addTrack, trackState } from './tracks.js';
+import { undoRedo } from './settle.js';
 import { liveEvents } from './events.js';
 import { timeSignature } from './signatures.js';
 import { writeAutomation } from './automation.js';
@@ -30,6 +31,7 @@ import { bounce } from './bounce.js';
 import { diffSongs } from './diff.js';
 import { gridBeats } from './grid.js';
 import { version } from './version.js';
+import { capture, analyze } from './audio.js';
 
 const json = (value) => ({ content: [{ type: 'text', text: JSON.stringify(value, null, 1) }] });
 const fail = (message) => ({ content: [{ type: 'text', text: message }], isError: true });
@@ -374,21 +376,21 @@ server.tool(
   'live_undo',
   "Undo the last edit(s) in the running Studio One; returns how many ran (a refused undo counts 0). Check the result rather than counting steps: mixer parameter changes (volume, monitor, plug-in parameters, automation mode...) become undo steps that are recorded late and merge, so an undo can land on one of those instead of the edit you just made. Undo again until your edit is gone.",
   { steps: z.number().int().optional() },
-  guard((a) => call('undo', a)),
+  guard((a) => undoRedo(call, 'undo', a)),
 );
 
 server.tool(
   'live_redo',
   'Redo edit(s) in the running Studio One.',
   { steps: z.number().int().optional() },
-  guard((a) => call('redo', a)),
+  guard((a) => undoRedo(call, 'redo', a)),
 );
 
 server.tool(
   'live_track_state',
   "Toggle a track's arm / monitor / mute / solo, hide it, or duplicate it, by track name; showAll unhides every track. Returns the track's mixer channel afterwards. The track selection is restored. Mute is not on Studio One's undo stack: revert it by toggling again, since live_undo would undo the edit before it.",
   { track: z.string().optional(), action: z.enum(['arm', 'monitor', 'mute', 'solo', 'hide', 'duplicate', 'showAll']) },
-  guard((a) => call('trackState', a)),
+  guard((a) => trackState(call, a)),
 );
 
 server.tool(
@@ -406,7 +408,32 @@ server.tool(
   'live_add_track',
   'Add a track to the song open in Studio One: audioMono (default), audioStereo, instrument, folder or automation.',
   { type: z.enum(['audioMono', 'audioStereo', 'instrument', 'folder', 'automation']).optional() },
-  guard((a) => call('addTrack', a)),
+  guard((a) => addTrack(call, a)),
+);
+
+server.tool(
+  'audio_capture',
+  "Record what the running Studio One plays, to a WAV file (32-bit float, the session's rate), through a macOS process tap: nothing is installed and the audio output is unchanged. If the transport is stopped, it plays from from_seconds / from_bars (or the playhead) for the capture, then stops and puts the playhead back; the metronome click and precount are off while it plays. Audible. Never records in Studio One. Pass the file to audio_analyze. Recordings go to the studio-one-mcp data folder unless out is given.",
+  {
+    seconds: z.number().describe('Length, up to 600'),
+    from_seconds: z.number().optional(),
+    from_bars: z.string().optional().describe('Start like "9.1.1.0"; alternative to from_seconds'),
+    out: z.string().optional().describe('WAV path to write'),
+  },
+  guard((a) => capture(call, a)),
+);
+
+server.tool(
+  'audio_analyze',
+  "Measure a WAV (an audio_capture, a bounce, any mix): integrated / short-term / momentary loudness and LRA (EBU R128), sample and true peak, crest factor and PLR, energy per band (sub 20-60, low 60-200, low-mid 200-500, mid 500-2k, presence 2k-6k, air 6k-20k Hz) as dB of the total, low end below 120 Hz (mono or not), L/R correlation over time, stereo width per band, loudness per section, and flags worth acting on. With reference (another WAV, e.g. a capture before a change or a commercial track), also the difference per measure; band differences are loudness-independent. For before/after on a short excerpt use loudnessDeltaLu (ungated): integrated LUFS is gated for whole songs and can hide a change. Repeat captures of the same passage differ by about ±0.2 dB true peak and ±3% width (start timing), so smaller moves are noise. Writes a PNG of the plots next to the file.",
+  {
+    file: z.string(),
+    reference: z.string().optional(),
+    sections: z.array(z.object({ name: z.string(), start: z.number(), end: z.number() })).optional().describe('Seconds within the file'),
+    segment: z.number().optional().describe('Section length in seconds when sections are not given (default 10)'),
+    plot: z.boolean().optional().describe('Write the PNG (default true)'),
+  },
+  guard((a) => analyze(a)),
 );
 
 server.tool(
@@ -771,4 +798,5 @@ server.tool(
   guard((a) => call('eval', a, { timeoutMs: 15000 })),
 );
 
+openEarly();
 await server.connect(new StdioServerTransport());

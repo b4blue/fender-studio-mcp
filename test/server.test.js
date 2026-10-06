@@ -50,9 +50,10 @@ async function call(name, args = {}) {
   return { isError: !!r.isError, text, data: r.isError ? null : JSON.parse(text) };
 }
 
-test('exposes the song and live tools', async () => {
+test('exposes the song, live and audio tools', async () => {
   const names = (await client.listTools()).tools.map((t) => t.name).sort();
   assert.deepEqual(names, [
+    'audio_analyze', 'audio_capture',
     'live_add_bus', 'live_add_instrument_track', 'live_add_marker', 'live_add_plugin', 'live_add_send', 'live_add_track', 'live_arranger', 'live_bounce', 'live_bypass_insert', 'live_changes', 'live_channels', 'live_command', 'live_delete_marker',
     'live_edit_events', 'live_edit_notes', 'live_eval', 'live_events', 'live_inserts', 'live_list_commands', 'live_macros', 'live_markers', 'live_meters', 'live_mix_snapshot', 'live_notes', 'live_plugin_params', 'live_plugin_snapshot', 'live_plugins', 'live_record', 'live_record_setup',
     'live_redo', 'live_rename_marker', 'live_run_macro', 'live_save', 'live_select_events', 'live_select_track', 'live_sends', 'live_set_automation',
