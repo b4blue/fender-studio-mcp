@@ -22,7 +22,7 @@ function bridge() {
         return { selected };
       case 'setChannelLabel': { const t = tracks.find((x) => x.channel === args.channel); t.name = t.channel = args.name; return { after: args.name }; }
       case 'setChannelColor': tracks.find((x) => x.channel === args.channel).color = `#${(args.argb & 0xffffff).toString(16).padStart(6, '0')}`; return { after: args.argb };
-      case 'command': if (args.name === 'Remove Track') tracks.splice(tracks.findIndex((t) => t.name === selected[0]), 1); return { executed: true };
+      case 'command': if (args.checkOnly) return { enabled: args.category === 'Song' }; if (args.name === 'Remove Track') tracks.splice(tracks.findIndex((t) => t.name === selected[0]), 1); return { executed: true };
       default: throw new Error(`unexpected ${op}`);
     }
   };
@@ -71,4 +71,22 @@ test('remove selects the track, removes it and keeps the rest of the selection',
   assert.equal(r.removed, 'Vox');
   assert.ok(!b.tracks.some((t) => t.name === 'Vox'));
   assert.deepEqual(b.selected(), ['Gtr']);
+});
+
+test('remove with kind takes the instrument track of two that share a name', async () => {
+  const tracks = [{ name: '2 Drums', channel: '2 Drums', mediaType: 'Audio' }, { name: '2 Drums', channel: '2 Drums', mediaType: 'Music' }];
+  let picked = null;
+  const call = async (op, args) => {
+    switch (op) {
+      case 'tracks': return tracks.filter((t) => t.name.includes(args.name));
+      case 'song': return { selectedTracks: [], trackCount: tracks.length };
+      case 'selectTrack': picked = tracks.find((t) => t.name === args.name && (!args.mediaType || t.mediaType === args.mediaType)); return { selected: [args.name] };
+      case 'command': if (args.checkOnly) throw new Error('unknown command: Song/Remove Track'); tracks.splice(tracks.indexOf(picked), 1); return { executed: args.category === 'Session' };
+      default: throw new Error(`unexpected ${op}`);
+    }
+  };
+  await assert.rejects(trackEdit(call, { track: '2 Drums', action: 'remove' }), /ambiguous.*pass kind/);
+  const r = await trackEdit(call, { track: '2 Drums', kind: 'instrument', action: 'remove' });
+  assert.deepEqual([r.removed, r.kind, r.trackCount], ['2 Drums', 'instrument', 1]);
+  assert.deepEqual(tracks.map((t) => t.mediaType), ['Audio'], 'the audio stem stays');
 });

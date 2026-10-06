@@ -17,7 +17,7 @@ import { midiPort, openEarly } from './midi.js';
 import { pluginParamNames } from './plugins.js';
 import { arranger, listMacros, runMacro } from './arranger.js';
 import { tempo } from './tempo.js';
-import { trackEdit, addBus, trackTask, addInstrumentTrack, addPlugin, addFxSend, addTrack, trackState } from './tracks.js';
+import { trackEdit, addBus, trackTask, addInstrumentTrack, addPlugin, addFxSend, addTrack, trackState, MEDIA_TYPE } from './tracks.js';
 import { undoRedo } from './settle.js';
 import { liveEvents } from './events.js';
 import { timeSignature } from './signatures.js';
@@ -225,8 +225,8 @@ server.tool(
 server.tool(
   'live_select_track',
   'Select a track by exact name in the running Studio One, so that selection-based commands (live_command) act on it. Replaces the selection unless exclusive is false.',
-  { name: z.string(), exclusive: z.boolean().optional() },
-  guard((a) => call('selectTrack', a)),
+  { name: z.string(), exclusive: z.boolean().optional(), kind: z.enum(['audio', 'instrument']).optional().describe('When two tracks share the name: which one') },
+  guard(({ kind, ...a }) => call('selectTrack', { ...a, ...(kind ? { mediaType: MEDIA_TYPE[kind] } : {}) })),
 );
 
 server.tool(
@@ -683,6 +683,7 @@ server.tool(
   'Edit a track by exact name in the running Studio One: rename (and its mixer channel), color ("#rrggbb"), remove, move (reorder: put it just before or after another track; both at the top level, not inside a folder), route (send its channel\'s output to a bus or output, by channel name), folder (move it into a folder track, creating it with create: true; the folder is expanded so the track stays visible to these tools), or renameEvents (name every event on it, numbered in time order if asked). Rename and colour are not on the undo stack; route is set back by routing to the "before" channel the result gives; remove, move, folder and renameEvents undo with live_undo. The track selection is kept. Move, route, folder and renameEvents run through the MCP Track Edit task installed with the device.',
   {
     track: z.string(),
+    kind: z.enum(['audio', 'instrument']).optional().describe('When two tracks share the name (an audio stem and its MIDI render): which one'),
     action: z.enum(['rename', 'color', 'remove', 'move', 'route', 'folder', 'renameEvents']),
     name: z.string().optional().describe('For rename and renameEvents'),
     color: z.string().optional().describe('For color: "#rrggbb"'),

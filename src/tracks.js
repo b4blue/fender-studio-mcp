@@ -13,10 +13,15 @@ export const toArgb = (color) => {
   return (0xff000000 | parseInt(m[1], 16)) | 0;
 };
 
-async function findTrack(call, name) {
+// kind ("audio" or "instrument") tells apart tracks that share a name, like an
+// audio stem and its MIDI render.
+export const MEDIA_TYPE = { audio: 'Audio', instrument: 'Music' };
+
+async function findTrack(call, name, kind) {
   const tracks = await call('tracks', { name, events: false });
-  const hits = tracks.filter((t) => t.name === name);
-  if (hits.length !== 1) throw new Error(hits.length ? `track name is ambiguous: ${name}` : `no track named ${name}`);
+  let hits = tracks.filter((t) => t.name === name);
+  if (hits.length > 1 && kind) hits = hits.filter((t) => t.mediaType === MEDIA_TYPE[kind]);
+  if (hits.length !== 1) throw new Error(hits.length ? `track name is ambiguous: ${name} (pass kind: audio or instrument)` : `no track named ${name}`);
   return hits[0];
 }
 
@@ -57,8 +62,8 @@ export async function trackTask(call, op) {
   return r;
 }
 
-export async function trackEdit(call, { track, action, name, color, to, folder, create, numbered, before, after }) {
-  const t = await findTrack(call, track);
+export async function trackEdit(call, { track, kind, action, name, color, to, folder, create, numbered, before, after }) {
+  const t = await findTrack(call, track, kind);
   switch (action) {
     case 'move': {
       if ((before === undefined) === (after === undefined)) throw new Error('move needs exactly one of before or after (a track name)');
@@ -99,11 +104,16 @@ export async function trackEdit(call, { track, action, name, color, to, folder, 
     }
     case 'remove': {
       const { selectedTracks } = await call('song');
-      await call('selectTrack', { name: track });
-      const r = await call('command', { category: 'Song', name: 'Remove Track' });
+      const count0 = (await call('song')).trackCount;
+      await call('selectTrack', { name: track, ...(kind ? { mediaType: MEDIA_TYPE[kind] } : {}) });
+      // Song/Remove Track on Studio One 5; Session/Remove Track on Studio Pro 8.
+      const cmd = (await call('command', { category: 'Song', name: 'Remove Track', checkOnly: true }).catch(() => null)) ? 'Song' : 'Session';
+      const r = await call('command', { category: cmd, name: 'Remove Track' });
       await restoreSelection(call, selectedTracks.filter((n) => n !== track));
-      if (!r.executed) throw new Error('Song/Remove Track did not run');
-      return { removed: track, trackCount: (await call('song')).trackCount, note: 'live_undo brings it back.' };
+      if (!r.executed) throw new Error(`${cmd}/Remove Track did not run`);
+      // Studio Pro 8 removes it just after the bridge answers (see settle.js).
+      const { trackCount } = await until(() => call('song'), (s) => s.trackCount !== count0);
+      return { removed: track, ...(kind ? { kind } : {}), trackCount, note: 'live_undo brings it back.' };
     }
     default:
       throw new Error(`unknown action ${action}`);

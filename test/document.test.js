@@ -54,6 +54,13 @@ test('selectTrack: exclusive by default, additive on request, errors for unknown
   assert.deepEqual(plain(ask('song').result).selectedTracks, ['Bass']);
 });
 
+test('selectTrack: a mediaType picks one of two tracks that share a name (audio stem and its MIDI)', () => {
+  const { ask } = setup({ tracks: [{ name: '2 Drums' }, { name: '2 Drums', mediaType: 'Music' }] });
+  assert.match(ask('selectTrack', { name: '2 Drums' }).error, /ambiguous: 2 Drums \(pass kind/);
+  assert.deepEqual(plain(ask('selectTrack', { name: '2 Drums', mediaType: 'Music' }).result), { selected: ['2 Drums'] });
+  assert.match(ask('selectTrack', { name: '2 Drums', mediaType: 'Video' }).error, /no track named/);
+});
+
 test('transport: actions run the matching command and report the new state', () => {
   const { ask, host } = setup();
   const play = plain(ask('transport', { action: 'play' }).result);

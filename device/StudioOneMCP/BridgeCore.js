@@ -479,8 +479,11 @@ class Bridge {
         const list = trackList();
         if (!list) return fail("no song open");
         if (!has(list, "selectTrack", "function")) return fail("track selection not available");
-        const matches = uniqueTracks(list).filter(t => String(t.name) === String(args.name));
-        if (matches.length !== 1) return fail(matches.length ? "track name is ambiguous: " + args.name : "no track named " + args.name);
+        let matches = uniqueTracks(list).filter(t => String(t.name) === String(args.name));
+        // An audio stem and its MIDI render often share a name: mediaType ("Audio" or
+        // "Music") picks one of them.
+        if (matches.length > 1 && args.mediaType) matches = matches.filter(t => has(t, "mediaType", "string") && t.mediaType === args.mediaType);
+        if (matches.length !== 1) return fail(matches.length ? "track name is ambiguous: " + args.name + " (pass kind: audio or instrument)" : "no track named " + args.name);
         if (args.exclusive !== false && has(list, "unselectAll", "function")) list.unselectAll();
         list.selectTrack(matches[0], true, false);
         return { selected: selectedTracks(list).map(t => String(t.name)) };
