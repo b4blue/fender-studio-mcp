@@ -52,7 +52,7 @@ const stamp = (d) => d.toISOString().replace(/[:.]/g, '-').replace('Z', '');
 export async function capture(call, { seconds, from_seconds, from_bars, out } = {}, deps = {}) {
   const { run = runJson, pid = studioPid, now = () => new Date(), bin = tapBin } = deps;
   if (!(seconds > 0 && seconds <= 600)) throw new Error('seconds must be more than 0 and at most 600');
-  if (!existsSync(bin)) throw new Error('s1tap is not built: run "npm run build:audio" in studio-one-mcp');
+  if (!existsSync(bin)) throw new Error('s1tap is not built: run "npm run build:audio" in the fender-studio-mcp folder');
   const p = pid();
   if (!p) throw new Error('Studio One is not running');
   const t = (await call('song')).transport;
@@ -88,7 +88,7 @@ export async function capture(call, { seconds, from_seconds, from_bars, out } = 
 // Measure a recording, optionally against a reference; writes a PNG next to it.
 export async function analyze({ file, reference, sections, segment, plot = true } = {}, deps = {}) {
   const { run = runJson, py = python } = deps;
-  if (!existsSync(py)) throw new Error('the analyzer is not set up: run "npm run build:audio" in studio-one-mcp');
+  if (!existsSync(py)) throw new Error('the analyzer is not set up: run "npm run build:audio" in the fender-studio-mcp folder');
   if (!existsSync(file)) throw new Error(`no such file: ${file}`);
   if (reference && !existsSync(reference)) throw new Error(`no such file: ${reference}`);
   const args = [analyzer, file];

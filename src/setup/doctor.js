@@ -1,4 +1,4 @@
-// `studio-one-mcp doctor`: check every link in the chain and say how to fix
+// `fender-studio-mcp doctor`: check every link in the chain and say how to fix
 // the first broken one. Read-only.
 import { studioOneProfiles, songRoots, mailboxDir } from '../paths.js';
 import { deviceStatus } from './device.js';
@@ -32,17 +32,17 @@ export async function runChecks({ profile, live = true } = {}) {
     const d = deviceStatus(chosen);
     editTasks = d.editTasks;
     const deviceStale = (d.stale || []).filter((s) => !d.editTasks.stale.includes(s));
-    if (!d.installed) add('Bridge device installed', FAIL, 'not installed', 'Run: studio-one-mcp setup');
-    else if (deviceStale.length) add('Bridge device installed', WARN, `out of date (${deviceStale.join(', ')})`, 'Run: studio-one-mcp setup (then restart Studio One)');
+    if (!d.installed) add('Bridge device installed', FAIL, 'not installed', 'Run: fender-studio-mcp setup');
+    else if (deviceStale.length) add('Bridge device installed', WARN, `out of date (${deviceStale.join(', ')})`, 'Run: fender-studio-mcp setup (then restart Studio One)');
     else add('Bridge device installed', PASS, `live_eval ${d.config?.allowEval ? 'enabled' : 'disabled'}`, null);
-    if (!editTasks.installed) add('Edit-task extension', FAIL, 'not installed (live_edit_notes needs it)', 'Run: studio-one-mcp setup (then restart Studio One)');
-    else if (!editTasks.current) add('Edit-task extension', WARN, `out of date (${editTasks.stale.join(', ')})`, 'Run: studio-one-mcp setup (then restart Studio One)');
+    if (!editTasks.installed) add('Edit-task extension', FAIL, 'not installed (live_edit_notes needs it)', 'Run: fender-studio-mcp setup (then restart Studio One)');
+    else if (!editTasks.current) add('Edit-task extension', WARN, `out of date (${editTasks.stale.join(', ')})`, 'Run: fender-studio-mcp setup (then restart Studio One)');
     else add('Edit-task extension', PASS, 'installed', null);
   }
 
   const midi = midiOutputs();
   const port = pickMidiPort(midi.names);
-  if (!midi.ok) add('MIDI', FAIL, midi.error, 'Run npm install in the studio-one-mcp folder');
+  if (!midi.ok) add('MIDI', FAIL, midi.error, 'Run npm install in the fender-studio-mcp folder');
   else if (!port && isMac && !process.env.STUDIO_ONE_MCP_MIDI_PORT)
     add('Virtual MIDI port', PASS, 'no IAC bus; the server publishes its own port "studio-one-mcp" while it runs', null);
   else if (!port)
@@ -82,10 +82,10 @@ export async function runChecks({ profile, live = true } = {}) {
   }
 
   const cc = claudeCodeAvailable();
-  if (cc) add('Claude Code', claudeCodeRegistered() ? PASS : WARN, claudeCodeRegistered() ? 'studio-one registered' : 'not registered', claudeCodeRegistered() ? null : 'Run: studio-one-mcp setup (or claude mcp add -s user studio-one -- node <path>/src/server.js)');
+  if (cc) add('Claude Code', claudeCodeRegistered() ? PASS : WARN, claudeCodeRegistered() ? 'studio-one registered' : 'not registered', claudeCodeRegistered() ? null : 'Run: fender-studio-mcp setup (or claude mcp add -s user studio-one -- node <path>/src/server.js)');
   const dp = desktopConfigPath();
   const dr = desktopRegistered(dp);
-  add('Claude Desktop', dr ? PASS : INFO, dr ? 'studio-one registered' : 'not registered', dr ? null : 'Optional: studio-one-mcp setup can add it to ' + dp);
+  add('Claude Desktop', dr ? PASS : INFO, dr ? 'studio-one registered' : 'not registered', dr ? null : 'Optional: fender-studio-mcp setup can add it to ' + dp);
 
   add('Mailbox', INFO, mailboxDir, null);
   return results;

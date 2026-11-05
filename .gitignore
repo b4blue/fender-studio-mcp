@@ -5,3 +5,5 @@ node_modules/
 audio/bin/
 audio/.venv/
 __pycache__/
+audio/*.png
+captures/

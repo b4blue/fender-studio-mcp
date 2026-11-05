@@ -3,11 +3,11 @@
 // clients launch it; subcommands are for people.
 const [cmd, ...rest] = process.argv.slice(2);
 
-const usage = `studio-one-mcp            run the MCP server (stdio)
-studio-one-mcp setup      guided install: device, virtual MIDI port, MCP client
+const usage = `fender-studio-mcp            run the MCP server (stdio)
+fender-studio-mcp setup      guided install: device, virtual MIDI port, MCP client
                           [--yes] [--dry-run] [--profile <dir>]
-studio-one-mcp doctor     check every link in the chain, with fixes
-studio-one-mcp uninstall  remove the bridge device [--profile <dir>]`;
+fender-studio-mcp doctor     check every link in the chain, with fixes
+fender-studio-mcp uninstall  remove the bridge device [--profile <dir>]`;
 
 if (!cmd) {
   await import('./server.js');

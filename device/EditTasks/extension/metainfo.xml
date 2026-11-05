@@ -5,5 +5,5 @@
 	<Attribute id="Package:Description" value="Lets studio-one-mcp edit notes"/>
 	<Attribute id="Package:Version" value="0.1.0.0"/>
 	<Attribute id="Package:Vendor" value="studio-one-mcp"/>
-	<Attribute id="Package:Website" value="https://github.com/NeanderthalMan/studio-one-mcp"/>
+	<Attribute id="Package:Website" value="https://github.com/b4blue/fender-studio-mcp"/>
 </MetaInformation>

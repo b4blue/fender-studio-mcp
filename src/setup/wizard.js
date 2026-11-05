@@ -1,4 +1,4 @@
-// `studio-one-mcp setup`: a guided install. Each step says what it will do and
+// `fender-studio-mcp setup`: a guided install. Each step says what it will do and
 // asks first (or takes the default with --yes). --dry-run changes nothing.
 import { createInterface } from 'node:readline/promises';
 import { execFileSync, spawnSync } from 'node:child_process';
@@ -28,7 +28,7 @@ export async function setup(argv = []) {
   const act = (desc, fn) => (dry ? say(`   (dry run) would ${desc}`) : fn());
 
   try {
-    say('studio-one-mcp setup' + (dry ? ' (dry run: nothing will be changed)' : ''));
+    say('fender-studio-mcp setup' + (dry ? ' (dry run: nothing will be changed)' : ''));
 
     // 1. Studio One profile
     step(1, 'Studio One');
@@ -130,10 +130,10 @@ export async function setup(argv = []) {
         }
         await sleep(3000);
       }
-      say('   ✖ No answer yet. Run "studio-one-mcp doctor" to see which link is missing.');
+      say('   ✖ No answer yet. Run "fender-studio-mcp doctor" to see which link is missing.');
       return 1;
     }
-    say('\nDone. "studio-one-mcp doctor" checks everything at any time.');
+    say('\nDone. "fender-studio-mcp doctor" checks everything at any time.');
     return 0;
   } finally {
     rl?.close();

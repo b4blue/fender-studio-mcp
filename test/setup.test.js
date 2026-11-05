@@ -77,15 +77,15 @@ test('serverEntry: node + absolute server path; MIDI port env only when not IAC'
 });
 
 test('serverEntry from npx: registers npx pinned to this version, not the cache path', () => {
-  const cached = '/Users/me/.npm/_npx/3f2a9c/node_modules/studio-one-mcp/src/server.js';
+  const cached = '/Users/me/.npm/_npx/3f2a9c/node_modules/fender-studio-mcp/src/server.js';
   assert.equal(runningFromNpx(cached), true);
   assert.equal(runningFromNpx(serverPath), false, 'this checkout is not the npx cache');
-  assert.deepEqual(serverEntry({ path: cached, platform: 'darwin', pkgVersion: '0.2.0' }), { command: 'npx', args: ['-y', 'studio-one-mcp@0.2.0'] });
-  const win = 'C:\\Users\\me\\AppData\\Local\\npm-cache\\_npx\\3f2a9c\\node_modules\\studio-one-mcp\\src\\server.js';
+  assert.deepEqual(serverEntry({ path: cached, platform: 'darwin', pkgVersion: '0.2.0' }), { command: 'npx', args: ['-y', 'fender-studio-mcp@0.2.0'] });
+  const win = 'C:\\Users\\me\\AppData\\Local\\npm-cache\\_npx\\3f2a9c\\node_modules\\fender-studio-mcp\\src\\server.js';
   assert.deepEqual(serverEntry({ path: win, platform: 'win32', pkgVersion: '0.2.0', midiPort: 'loopMIDI Port' }), {
-    command: 'cmd', args: ['/c', 'npx', '-y', 'studio-one-mcp@0.2.0'], env: { STUDIO_ONE_MCP_MIDI_PORT: 'loopMIDI Port' },
+    command: 'cmd', args: ['/c', 'npx', '-y', 'fender-studio-mcp@0.2.0'], env: { STUDIO_ONE_MCP_MIDI_PORT: 'loopMIDI Port' },
   });
-  assert.deepEqual(serverEntry({ path: cached }).args, ['-y', `studio-one-mcp@${version}`], 'defaults to package.json');
+  assert.deepEqual(serverEntry({ path: cached }).args, ['-y', `fender-studio-mcp@${version}`], 'defaults to package.json');
 });
 
 test('claude mcp add arguments: user scope, env, then the command', () => {
@@ -137,7 +137,7 @@ const run = (args, env = {}) => {
 };
 
 test('cli: help, unknown command, doctor on an empty profile', () => {
-  assert.match(run(['help']).out, /studio-one-mcp setup/);
+  assert.match(run(['help']).out, /fender-studio-mcp setup/);
   assert.equal(run(['bogus']).code, 1);
   const profile = tmp('s1doc-');
   const r = run(['doctor', '--profile', profile], { STUDIO_ONE_MCP_HOME: tmp('s1home-') });

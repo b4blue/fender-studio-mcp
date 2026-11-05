@@ -1,17 +1,25 @@
-# studio-one-mcp
+# fender-studio-mcp
 
-An [MCP](https://modelcontextprotocol.io) server for PreSonus **Studio One**. It lets Claude and other MCP clients read your songs and control a running Studio One.
+An [MCP](https://modelcontextprotocol.io) server for **Fender Studio Pro 8** (the DAW formerly called PreSonus Studio One). It lets Claude and other MCP clients read your songs, control the running app, and listen to what it plays: capture the output, measure loudness, peaks, bands and stereo image, change something, and measure again.
 
-Studio One has no public API, no OSC, and no network scripting. This server combines two things it *does* have:
+> **Fork notice.** This is a fork of [NeanderthalMan/studio-one-mcp](https://github.com/NeanderthalMan/studio-one-mcp) by Adam Morgan (MIT), which did the hard work: the `.song` parser, the in-app bridge device and nearly all of the tools. This fork adds:
+>
+> - **Studio Pro 8 support**, tested on Studio Pro 8.1.2 (macOS): finds the Fender profile instead of an old PreSonus one, recognises the `Studio Pro` process, uses the renamed `Session/Remove Track` command, and tells same-named tracks apart (an instrument track's note channel and its audio channel).
+> - **No IAC Driver needed** on macOS: the server publishes its own CoreMIDI port, `studio-one-mcp`, and every server process shares it. Studio Pro reconnects to it by name.
+> - **Audio capture and analysis** (`audio_capture`, `audio_analyze`): records Studio Pro's output through a Core Audio process tap (no BlackHole, no loopback driver, nothing to route) and reports integrated/short-term loudness, LRA, true peak, clipping, crest factor, band energy, low-end mono, width and correlation, with an optional reference comparison and a PNG.
+> - Settle delays after edits, because Studio Pro 8 applies some command edits just after the device script returns.
 
-| Layer | How | Needs Studio One running? |
+| Layer | How | Needs Studio Pro running? |
 |---|---|---|
 | **`song_*` tools** | Parse `.song` files, which are zip archives of XML: tempo map, meter, markers, arranger sections, tracks, takes, clips, mixer, plug-in inserts and media. | No. Reflects the last save or autosave. |
-| **`live_*` tools** | A small control-surface device, installed into Studio One, that answers requests through a local **file mailbox**. It uses Studio One's own JavaScript device SDK. | Yes |
+| **`live_*` tools** | A small control-surface device, installed into Studio Pro, that answers requests through a local **file mailbox**. It uses the app's own JavaScript device SDK. | Yes |
+| **`audio_*` tools** | Record the app's output with a macOS process tap, then analyse the WAV in Python. | Yes (macOS 14.4+) |
 
-Status: early. Developed against **Studio One 5.5.2 on macOS**. Paths for Windows and for Studio One 6/7 and Studio Pro 8 are wired in but untested.
+Status: works day-to-day on **Studio Pro 8.1.2, macOS**. The upstream project was developed on Studio One 5.5.2; Windows is wired in but untested here, and the audio tools are macOS only.
 
-An independent project, not affiliated with or endorsed by PreSonus or Fender. Studio One is their trademark.
+Much of the text below still says "Studio One": read it as Studio Pro 8. Internal names (the `studio-one-mcp` device in External Devices, the MIDI port, the data folder, `STUDIO_ONE_*` variables) are kept as they were, so the fork stays a drop-in replacement for the original install.
+
+An independent project, not affiliated with or endorsed by Fender or PreSonus. Studio Pro and Studio One are their trademarks.
 
 ## Tools
 
@@ -65,50 +73,55 @@ An independent project, not affiliated with or endorsed by PreSonus or Fender. S
 | `live_list_commands` | Discover command names, optionally with whether each is enabled right now. |
 | `live_changes` | What changed in the song since the previous call: tracks added, removed, renamed or reordered, events on each track, mixer changes (levels, mute and solo, arm, monitor, automation mode, output, plug-ins), tempo, loop, markers and sections. It compares snapshots, so it sees what you did by hand as well, as net changes. |
 | `live_eval` | Run JavaScript inside Studio One to explore its object model. Opt-in only. |
+| `audio_capture` | Record what Studio Pro plays to a WAV (32-bit float) through a macOS process tap. If the transport is stopped it plays the requested range, with click and precount off, then puts the playhead back. Never records into the song. macOS 14.4+. |
+| `audio_analyze` | Analyse a capture: integrated and short-term loudness, LRA, true peak and clipped samples, crest factor, energy per band, low-end mono, width and correlation, per-section stats, and an optional comparison with a reference file or an earlier capture. Writes a PNG overview. |
 
 ## Install
 
-You need Node.js 20 or newer and Studio One.
+You need Node.js 20 or newer and Studio Pro 8 (Studio One 5–7 should work as upstream). For the audio tools you also need Xcode command-line tools (`swiftc`) and Python 3.10+.
 
 ```sh
-npx -y studio-one-mcp setup
-```
-
-That is the whole install: npm fetches the package and the guided setup below takes it from there. To work on the code instead, clone it and run setup from the checkout, which then registers that checkout:
-
-```sh
-git clone https://github.com/NeanderthalMan/studio-one-mcp.git
-cd studio-one-mcp
+git clone https://github.com/b4blue/fender-studio-mcp.git
+cd fender-studio-mcp
 npm install
-npx studio-one-mcp setup
+npm run build:audio      # optional: builds the s1tap recorder and the Python analyser venv
+npm run setup
 ```
 
 `setup` walks you through each step and asks before changing anything:
 
-1. It finds your Studio One user profile.
+1. It finds your Studio Pro (or Studio One) user profile.
 2. It installs the **MCP Bridge** device into it, and a small extension (`Extensions/studio-one-mcp.edittasks`) that lets the bridge edit notes.
 3. It checks for a virtual MIDI port, which acts as the bridge's doorbell:
-   - **macOS:** the built-in IAC Driver. `setup` can open Audio MIDI Setup for you. Tick **Device is online** under **IAC Driver**.
+   - **macOS:** nothing to do. If the IAC Driver is online it is used; otherwise the server publishes its own port named `studio-one-mcp` while it runs.
    - **Windows:** install [loopMIDI](https://www.tobias-erichsen.de/software/loopmidi.html) and add a port named `studio-one-mcp`.
-4. It registers the server with Claude Code (all projects) and, if you want, Claude Desktop. Installed with `npx`, it registers `npx -y studio-one-mcp@<this version>`, pinned so the server always matches the device it installed; from a clone, it registers that checkout. It backs up the Desktop config before editing it. For any other client, it prints the JSON to paste.
-5. It shows the one step you do in Studio One: **Preferences… (⌘,)** on a Mac, **Options** on Windows → **External Devices → Add… → studio-one-mcp → MCP Bridge**. Set **Receive From** to your virtual MIDI port, and **Send To** to None. Restart Studio One first if it was running.
-6. It waits for Studio One to answer.
+4. It registers this checkout with Claude Code (all projects, as `studio-one`) and, if you want, Claude Desktop. It backs up the Desktop config before editing it. For any other client, it prints the JSON to paste.
+5. It shows the one step you do in the app: **Preferences… (⌘,)** on a Mac, **Options** on Windows → **External Devices → Add… → studio-one-mcp → MCP Bridge**. Set **Receive From** to `studio-one-mcp` (or your IAC bus), and **Send To** to None. Restart Studio Pro first if it was running. The port only exists while the MCP server runs: start your MCP client before (or restart it after) opening Studio Pro, and the app reconnects to it by name.
+6. It waits for Studio Pro to answer.
 
-From a clone, `npm run setup` does the same thing. Use `--yes` to accept the defaults, `--dry-run` to see what it would do, and `--profile <dir>` to pick a profile.
+Use `--yes` to accept the defaults, `--dry-run` to see what it would do, and `--profile <dir>` to pick a profile.
 
 If something doesn't work, run:
 
 ```sh
-npx -y studio-one-mcp doctor   # from a clone also: npm run doctor
+npm run doctor
 ```
 
-It checks every link in the chain and tells you how to fix the first broken one: Node, profile, Songs folder, device installed and current, edit-task extension installed and current, MIDI port, Studio One running, bridge loaded, bridge answering, the edit task loaded in Studio One, and MCP client registration. `setup` treats the device and the extension as one install: if either is missing or out of date (for example after an update), it offers to reinstall both.
+It checks every link in the chain and tells you how to fix the first broken one: Node, profile, Songs folder, device installed and current, edit-task extension installed and current, MIDI port, app running, bridge loaded, bridge answering, the edit task loaded, and MCP client registration.
 
-To remove the device and the extension: `npx -y studio-one-mcp uninstall`, then remove **MCP Bridge** under External Devices.
+To remove the device and the extension: `node src/cli.js uninstall`, then remove **MCP Bridge** under External Devices.
 
-To update: `npx -y studio-one-mcp@latest setup`. It reinstalls the device and the extension and registers the new version. From a clone: `git pull`, then `setup` again. Either way, restart Studio One afterwards: it loads the device and the extension only at startup.
+To update: `git pull`, `npm install`, then `npm run setup` again, and restart Studio Pro: it loads the device and the extension only at startup.
 
 **Without the live bridge:** the `song_*` tools need nothing but the MCP registration. They read your `.song` files directly.
+
+### Tips from use on Studio Pro 8
+
+- `live_set_channel` volume is a **linear gain** (1.0 = 0 dB, 3.162 = +10 dB, 0.5 ≈ −6 dB).
+- Don't add a plug-in and undo it within a second or so, and don't read inserts while an undo is removing plug-ins: Studio Pro 8 can crash in that window.
+- Studio Pro 8 has no script command to remove an instrument from the rack; do that by hand.
+- For short A/B captures, compare the ungated `loudnessDeltaLu` rather than integrated LUFS (gating can hide the change). Expect about ±0.2 dB true peak and ±3 % width between identical captures.
+- Long `audio_capture` runs can exceed an MCP client's default 60 s request timeout.
 
 ### Configuration
 
@@ -116,7 +129,8 @@ To update: `npx -y studio-one-mcp@latest setup`. It reinstalls the device and th
 |---|---|
 | `STUDIO_ONE_SONGS` | `~/Documents/Studio One/Songs` (colon-separated list) |
 | `STUDIO_ONE_PROFILE` | newest `…/PreSonus/Studio One *` user folder |
-| `STUDIO_ONE_MCP_MIDI_PORT` | first MIDI output whose name contains `IAC` |
+| `STUDIO_ONE_MCP_MIDI_PORT` | first MIDI output whose name contains `IAC`; otherwise the server's own port |
+| `STUDIO_ONE_MCP_VIRTUAL_PORT` | `studio-one-mcp` (name of the port the server publishes on macOS) |
 | `STUDIO_ONE_MCP_HOME` | `~/Library/Application Support/studio-one-mcp` (the mailbox lives here) |
 
 ## How the live bridge works
@@ -249,8 +263,8 @@ These were verified on songs saved by Studio One 5.5.2:
 - [Alari81/studio-control](https://github.com/Alari81/studio-control) proved the file-mailbox device pattern on Studio Pro 8. It uses a different, noncommercial license, and no code from it is included here.
 - [CSources/Studio-Pro-Scripting-API-Reference](https://github.com/CSources/Studio-Pro-Scripting-API-Reference) is a community reference for the scripting API.
 
-Studio One is a trademark of PreSonus Audio Electronics / Fender. This project is not affiliated with either.
+Studio Pro and Studio One are trademarks of Fender / PreSonus Audio Electronics. This project is not affiliated with either.
 
 ## License
 
-MIT
+MIT. Original work © 2026 Adam Morgan; Studio Pro 8 fork © 2026 Boris Miljkovic. See [LICENSE](LICENSE).

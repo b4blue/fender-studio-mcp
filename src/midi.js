@@ -27,7 +27,7 @@ function loadMidi() {
   try {
     return require('@julusian/midi');
   } catch (e) {
-    throw new Error(`MIDI unavailable (${e.message}). Run npm install in studio-one-mcp.`);
+    throw new Error(`MIDI unavailable (${e.message}). Run npm install in the fender-studio-mcp folder.`);
   }
 }
 

@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// studio-one-mcp: MCP server for PreSonus Studio One.
+// fender-studio-mcp: MCP server for Fender Studio Pro (formerly PreSonus Studio One).
 //
 // Two kinds of tools:
 //  - song_*  read .song files from disk. Always available; reflect the last save.
@@ -45,7 +45,7 @@ const guard = (fn) => async (args) => {
 
 // ---- server ---------------------------------------------------------------------
 
-const server = new McpServer({ name: 'studio-one-mcp', version });
+const server = new McpServer({ name: 'fender-studio-mcp', version });
 
 server.tool(
   'song_list',

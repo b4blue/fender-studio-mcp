@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// Non-interactive device install (the guided version is `studio-one-mcp setup`).
+// Non-interactive device install (the guided version is `fender-studio-mcp setup`).
 //
 //   node scripts/install-device.js [--profile <dir>] [--allow-eval] [--uninstall]
 import { existsSync } from 'node:fs';
