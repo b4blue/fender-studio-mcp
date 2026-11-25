@@ -25,7 +25,7 @@ class BridgeComponent extends PreSonus.ControlSurfaceComponent {
         }
         // Clock: the client's MIDI CC on the bridgeTick control (see the surface file).
         // Do NOT use Host.GUI.addIdleTask with a script object here: on Studio One
-        // 5.5.2 that crashed the app at launch (EXC_BAD_ACCESS in cclgui's timer).
+        // 5.5.2 that crashed the app at launch.
         if (this.bridge) this.bridge.beat(true); // publish clockErrors even if no clock fires
     }
 
