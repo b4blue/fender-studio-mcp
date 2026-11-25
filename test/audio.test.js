@@ -23,11 +23,13 @@ function bridge({ playing = false, recording = false, click = true, precount = f
   return { call, calls, metro };
 }
 
-const deps = (log) => ({
+const deps = (log, over = {}) => ({
   pid: () => 1234,
   bin: process.execPath, // exists; never run
+  platform: 'darwin', // pin the macOS s1tap path; a Windows host would pick the WASAPI one
   now: () => new Date('2026-10-06T21:00:00Z'),
   run: async (cmd, args) => (log.push(args), { file: args[args.indexOf('--out') + 1], frames: 480000, peakDb: -3 }),
+  ...over,
 });
 
 test('capture from a stopped transport: click off, play, record, stop, playhead and click back', async () => {
@@ -64,8 +66,27 @@ test('the transport is stopped and put back even when the tap fails', async () =
   assert.deepEqual(b.calls.slice(-3).map(([op, a]) => [op, a]), [['transport', { action: 'stop' }], ['setTransport', { positionSeconds: 42 }], ['metronome', { click: true, precount: false }]]);
 });
 
+test('on Windows: runs the WASAPI loopback capturer (no --pid), warns on near-silence', async () => {
+  const win = (log, runResult) => deps(log, {
+    platform: 'win32',
+    py: process.execPath, // stands in for the venv python; exists, never run
+    cap: process.execPath, // stands in for capture_win.py; exists
+    run: async (cmd, args) => (log.push(args), runResult),
+  });
+  const runs = [];
+  const r = await capture(bridge({ playing: true }).call, { seconds: 2, out: '/tmp/w.wav' }, win(runs, { file: '/tmp/w.wav', frames: 96000, peakDb: -6 }));
+  assert.deepEqual(runs[0], [process.execPath, '--seconds', '2', '--out', '/tmp/w.wav', '--rate', '48000']);
+  assert.ok(!runs[0].includes('--pid'), 'the WASAPI capturer loops back a device, not a process');
+  assert.equal(r.warning, undefined, 'no warning when the capture has signal');
+  // Near-silence -> the ASIO-bypass hint.
+  const quiet = await capture(bridge({ playing: true }).call, { seconds: 2, out: '/tmp/q.wav' }, win([], { file: '/tmp/q.wav', frames: 96000, peakDb: -144 }));
+  assert.match(quiet.warning, /ASIO/);
+});
+
 test('analyzer: known answers for a sine, an anti-phase copy and a wide bass', { skip: !existsSync(python) && 'run npm run build:audio' }, async () => {
-  const dir = mkdtempSync(join(tmpdir(), 's1mcp-audio-'));
+  // Forward slashes so the path embeds cleanly in the Python source; on Windows a
+  // raw "C:\\Users\\..." would be read as string escapes (\U -> unicodeescape error).
+  const dir = mkdtempSync(join(tmpdir(), 's1mcp-audio-')).replace(/\\/g, '/');
   execFileSync(python, ['-c', `
 import numpy as np, soundfile as sf
 sr = 48000; t = np.arange(sr * 10) / sr

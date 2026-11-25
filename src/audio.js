@@ -8,9 +8,12 @@ import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { dataDir } from './paths.js';
 
+const isWin = process.platform === 'win32';
 const root = join(dirname(fileURLToPath(import.meta.url)), '..', 'audio');
-export const tapBin = join(root, 'bin', 's1tap');
-export const python = join(root, '.venv', 'bin', 'python');
+export const tapBin = join(root, 'bin', 's1tap'); // macOS process tap
+export const winCapture = join(root, 'capture_win.py'); // Windows WASAPI loopback
+// The venv's interpreter lives under Scripts\python.exe on Windows, bin/python elsewhere.
+export const python = join(root, '.venv', isWin ? 'Scripts' : 'bin', isWin ? 'python.exe' : 'python');
 export const analyzer = join(root, 'analyze.py');
 export const capturesDir = join(dataDir, 'captures');
 
@@ -27,8 +30,8 @@ export function runJson(cmd, args, timeoutMs) {
       };
       const out = parse(stdout) || parse(stderr.trim().split('\n').pop() || '');
       if (out && out.error) return reject(new Error(out.error));
-      if (err) return reject(new Error(`${cmd.split('/').pop()} failed: ${(stderr || err.message).trim()}`));
-      if (!out) return reject(new Error(`${cmd.split('/').pop()} printed no result`));
+      if (err) return reject(new Error(`${cmd.split(/[\\/]/).pop()} failed: ${(stderr || err.message).trim()}`));
+      if (!out) return reject(new Error(`${cmd.split(/[\\/]/).pop()} printed no result`));
       resolve(out);
     });
   });
@@ -36,6 +39,13 @@ export function runJson(cmd, args, timeoutMs) {
 
 export function studioPid() {
   try {
+    if (isWin) {
+      // tasklist is the portable "is it running"; the PID is unused by the WASAPI
+      // capturer (it loops back a device, not a process) but keeps the same check.
+      const out = execFileSync('tasklist', ['/fi', 'imagename eq Studio Pro.exe', '/nh', '/fo', 'csv'], { encoding: 'utf8' });
+      const m = out.match(/"(?:Studio Pro\.exe|studioapp\.exe)","(\d+)"/i);
+      return m ? Number(m[1]) : null;
+    }
     const pids = execFileSync('pgrep', ['-f', '/Contents/MacOS/(studioapp|Studio Pro)( |$)'], { encoding: 'utf8' }).trim().split('\n');
     return Number(pids[0]) || null;
   } catch {
@@ -50,9 +60,19 @@ const stamp = (d) => d.toISOString().replace(/[:.]/g, '-').replace('Z', '');
 // the playhead back. The metronome click and precount are off while it plays and
 // set back after, so they are not in the recording. Never records in Studio One.
 export async function capture(call, { seconds, from_seconds, from_bars, out } = {}, deps = {}) {
-  const { run = runJson, pid = studioPid, now = () => new Date(), bin = tapBin } = deps;
+  const {
+    run = runJson, pid = studioPid, now = () => new Date(),
+    bin = tapBin, py = python, cap = winCapture, platform = process.platform,
+    rate = Number(process.env.STUDIO_ONE_MCP_CAPTURE_RATE) || 48000,
+  } = deps;
+  const win = platform === 'win32';
   if (!(seconds > 0 && seconds <= 600)) throw new Error('seconds must be more than 0 and at most 600');
-  if (!existsSync(bin)) throw new Error('s1tap is not built: run "npm run build:audio" in the fender-studio-mcp folder');
+  if (win) {
+    if (!existsSync(py) || !existsSync(cap))
+      throw new Error('the Windows capturer is not set up: run "npm run build:audio" in the fender-studio-mcp folder (creates audio/.venv with soundcard)');
+  } else if (!existsSync(bin)) {
+    throw new Error('s1tap is not built: run "npm run build:audio" in the fender-studio-mcp folder');
+  }
   const p = pid();
   if (!p) throw new Error('Studio One is not running');
   const t = (await call('song')).transport;
@@ -70,7 +90,10 @@ export async function capture(call, { seconds, from_seconds, from_bars, out } = 
       if (metro.click || metro.precount) await call('metronome', { click: false, precount: false });
       await call('transport', { action: 'play' });
     }
-    result = await run(bin, ['--pid', String(p), '--seconds', String(seconds), '--out', file], (seconds + 15) * 1000);
+    const [cmd, args] = win
+      ? [py, [cap, '--seconds', String(seconds), '--out', file, '--rate', String(rate)]]
+      : [bin, ['--pid', String(p), '--seconds', String(seconds), '--out', file]];
+    result = await run(cmd, args, (seconds + 15) * 1000);
   } finally {
     if (startsPlay) {
       await call('transport', { action: 'stop' }).catch(() => {});
@@ -78,11 +101,19 @@ export async function capture(call, { seconds, from_seconds, from_bars, out } = 
       if (metro && (metro.click || metro.precount)) await call('metronome', { click: metro.click, precount: metro.precount }).catch(() => {});
     }
   }
-  return {
+  const final = {
     ...result,
     from: from_bars ?? from_seconds ?? home,
     transport: startsPlay ? 'played for the capture, then stopped; playhead put back' : 'was already playing; left playing',
   };
+  // Windows loopback only hears the Windows audio engine. Near-silence after a
+  // real playback usually means Studio One's output is on an exclusive ASIO
+  // driver, which bypasses it.
+  if (win && typeof result.peakDb === 'number' && result.peakDb <= -140) {
+    final.warning =
+      'Captured near-silence. If Studio One plays through an exclusive ASIO driver (e.g. a "Studio USB" interface) its output bypasses Windows loopback — set its Audio Device to a Windows Audio (WASAPI) driver, or run audio_analyze on a live_bounce instead.';
+  }
+  return final;
 }
 
 // Measure a recording, optionally against a reference; writes a PNG next to it.

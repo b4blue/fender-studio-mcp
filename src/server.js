@@ -413,7 +413,7 @@ server.tool(
 
 server.tool(
   'audio_capture',
-  "Record what the running Studio One plays, to a WAV file (32-bit float, the session's rate), through a macOS process tap: nothing is installed and the audio output is unchanged. If the transport is stopped, it plays from from_seconds / from_bars (or the playhead) for the capture, then stops and puts the playhead back; the metronome click and precount are off while it plays. Audible. Never records in Studio One. Pass the file to audio_analyze. Recordings go to the studio-one-mcp data folder unless out is given.",
+  "Record what the running Studio One plays, to a 32-bit float WAV: on macOS through a Core Audio process tap (nothing installed, the audio output unchanged), on Windows through WASAPI loopback of the output device. If the transport is stopped, it plays from from_seconds / from_bars (or the playhead) for the capture, then stops and puts the playhead back; the metronome click and precount are off while it plays. Audible. Never records in Studio One. Pass the file to audio_analyze. Recordings go to the studio-one-mcp data folder unless out is given. Windows note: loopback captures the whole output-device mix (not just Studio One), and if Studio One's audio device is an exclusive ASIO driver its output bypasses Windows loopback (the result's peakDb is near-silent and carries a warning) — set it to a Windows Audio driver, or analyze a live_bounce instead.",
   {
     seconds: z.number().describe('Length, up to 600'),
     from_seconds: z.number().optional(),
