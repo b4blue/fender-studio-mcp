@@ -41,6 +41,13 @@ class BridgeComponent extends PreSonus.ControlSurfaceComponent {
         catch (e) { Host.Console.writeLine("studio-one-mcp: tick failed: " + e); }
     }
 
+    // Driven by the surface <Timer> (see the surface file): polling the mailbox from
+    // the timer means the bridge needs no MIDI loopback. Where the host has no
+    // surface timer this never fires and the MIDI doorbell (paramChanged) is the clock.
+    onTick_bridgePoll(/* time */) {
+        this.clockTick("timer");
+    }
+
     paramChanged(param) {
         if (param === this.tickParam) return this.clockTick("midi");
         super.paramChanged(param);
