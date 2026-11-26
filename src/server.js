@@ -33,6 +33,7 @@ import { gridBeats } from './grid.js';
 import { version } from './version.js';
 import { capture, analyze, audioCapabilities, analyzeTrack } from './audio.js';
 import { show, SHOW_ACTIONS } from './show.js';
+import { panner } from './panner.js';
 
 const json = (value) => ({ content: [{ type: 'text', text: JSON.stringify(value, null, 1) }] });
 const fail = (message) => ({ content: [{ type: 'text', text: message }], isError: true });
@@ -656,6 +657,19 @@ server.tool(
     number: z.number().int().min(1).max(10).optional().describe('Slot 1-10 for selectSetlistItem / selectPatch / selectPlayer'),
   },
   guard((a) => show(call, a)),
+);
+
+server.tool(
+  'live_panner',
+  "Read or set a channel's panner in the running Studio One. With just channel, returns the panner type and every parameter it has: a stereo channel has a \"Simple\" panner with pan (0..1), while a surround or Dolby Atmos song gives a surround/object panner with more (e.g. angle, elevation, size). To set, give channel and one of value (raw), text (as Studio One shows it, e.g. \"L25\"), or normalized (0..1), with param (default \"pan\"). Parameter names depend on the panner type, so read first.",
+  {
+    channel: z.string().describe('Track/channel name'),
+    param: z.string().optional().describe('Panner parameter to set (default "pan"); read first to see what exists'),
+    value: z.number().optional().describe('Set the raw value'),
+    text: z.string().optional().describe('Set from display text, e.g. "L25"'),
+    normalized: z.number().min(0).max(1).optional().describe('Set the normalised value (0..1)'),
+  },
+  guard((a) => panner(call, a)),
 );
 
 server.tool(
