@@ -32,6 +32,7 @@ import { diffSongs } from './diff.js';
 import { gridBeats } from './grid.js';
 import { version } from './version.js';
 import { capture, analyze, audioCapabilities, analyzeTrack } from './audio.js';
+import { show, SHOW_ACTIONS } from './show.js';
 
 const json = (value) => ({ content: [{ type: 'text', text: JSON.stringify(value, null, 1) }] });
 const fail = (message) => ({ content: [{ type: 'text', text: message }], isError: true });
@@ -645,6 +646,16 @@ server.tool(
   "Bounce all events on one track in the running Studio One: inPlace renders them into a single new event (with plug-ins), toNewTrack renders them onto a new track of the same name and mutes the originals. No dialogs; one live_undo reverts the edit, but the rendered .wav stays in the song's Bounces folder. Returns wav: the path to that rendered file — pass it to audio_analyze. This is the driver-independent way to measure audio on Windows (an offline render, so it works even with an ASIO output), but it is one track's audio with its own inserts, not the full stereo mix. Exporting a mixdown or stems is not offered: those open dialogs (analyze a manual Export Mixdown WAV if you need the whole mix).",
   { track: z.string(), mode: z.enum(['inPlace', 'toNewTrack']).optional() },
   guard((a) => bounce(call, a)),
+);
+
+server.tool(
+  'live_show',
+  "Drive the Show page (live performance) in the running Studio One: move through the setlist (nextSetlistItem / prevSetlistItem / selectSetlistItem with number 1-10 / loopSetlistItem), manage it (add/remove/enable/disable/duplicateSetlistItem), switch patches (nextPatch / prevPatch / selectPatch 1-10 / selectMutePatch) and players (nextPlayer / prevPlayer / selectPlayer 1-10), set the playback mode (playbackContinue / playbackStopAtEnd / playbackLoop), or Perform. Only works when a Show is open (Song page → Show); otherwise the action reports it did not run.",
+  {
+    action: z.enum(SHOW_ACTIONS),
+    number: z.number().int().min(1).max(10).optional().describe('Slot 1-10 for selectSetlistItem / selectPatch / selectPlayer'),
+  },
+  guard((a) => show(call, a)),
 );
 
 server.tool(
