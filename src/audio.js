@@ -7,6 +7,7 @@ import { existsSync, mkdirSync } from 'node:fs';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { dataDir } from './paths.js';
+import { bounce } from './bounce.js';
 
 const isWin = process.platform === 'win32';
 const root = join(dirname(fileURLToPath(import.meta.url)), '..', 'audio');
@@ -180,4 +181,26 @@ export async function analyze({ file, reference, sections, segment, plot = true 
   if (segment) args.push('--segment', String(segment));
   if (plot) args.push('--plot', file.replace(/\.wav$/i, '') + (reference ? '-vs-reference' : '') + '.png');
   return run(py, args, 300000);
+}
+
+// Bounce one track to a WAV and measure it, then undo the bounce so the song is
+// left unchanged (the rendered WAV stays in the Bounces folder). This is the
+// driver-independent way to measure audio: an offline render, so it works on
+// Windows even when loopback capture can't hear the output. It is one track's
+// audio with its own inserts, not the full stereo mix. keepBounce leaves the
+// bounced event in the song.
+export async function analyzeTrack(call, { track, mode = 'inPlace', reference, keepBounce = false, plot = true } = {}, deps = {}) {
+  const { doBounce = bounce, doAnalyze = analyze } = deps;
+  const b = await doBounce(call, { track, mode });
+  if (!b.wav) {
+    if (!keepBounce) await call('undo').catch(() => {});
+    throw new Error('could not locate the rendered .wav (save the song to disk first). The bounce was undone.');
+  }
+  let analysis;
+  try {
+    analysis = await doAnalyze({ file: b.wav, reference, plot });
+  } finally {
+    if (!keepBounce) await call('undo').catch(() => {});
+  }
+  return { track, mode: b.mode, wav: b.wav, bounceUndone: !keepBounce, analysis };
 }

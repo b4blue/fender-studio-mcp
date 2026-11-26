@@ -31,7 +31,7 @@ import { bounce } from './bounce.js';
 import { diffSongs } from './diff.js';
 import { gridBeats } from './grid.js';
 import { version } from './version.js';
-import { capture, analyze, audioCapabilities } from './audio.js';
+import { capture, analyze, audioCapabilities, analyzeTrack } from './audio.js';
 
 const json = (value) => ({ content: [{ type: 'text', text: JSON.stringify(value, null, 1) }] });
 const fail = (message) => ({ content: [{ type: 'text', text: message }], isError: true });
@@ -441,6 +441,19 @@ server.tool(
   "Which audio-capture method to use on this machine, so you can pick before trying. Returns the capture backend, whether it is set up, any WASAPI loopback endpoints (Windows), and a recommended method: \"capture\" (audio_capture — real-time, the full stereo output) or \"bounce\" (live_bounce one track to a WAV, then audio_analyze — offline, driver-independent, per track only). On Windows it cannot read Studio One's audio driver, so \"capture\" is only a candidate: an exclusive ASIO output bypasses WASAPI loopback and a capture comes back near-silent (audio_capture then returns recommend:\"bounce\"). Call this first; fall back to bounce when it says so or when a capture is near-silent.",
   {},
   guard(() => audioCapabilities()),
+);
+
+server.tool(
+  'audio_analyze_track',
+  "Measure one track of the running song in a single call: bounce it to a WAV (offline render, through its own inserts), run audio_analyze on that WAV, then undo the bounce so the song is unchanged (the rendered WAV stays in the song's Bounces folder). Driver-independent — the reliable way to measure audio on Windows, since it needs no loopback and works even with an ASIO output. It is one track's audio, not the full stereo mix. The song must be saved to disk. Pass keepBounce:true to leave the bounced event in place; reference to compare against another WAV.",
+  {
+    track: z.string(),
+    mode: z.enum(['inPlace', 'toNewTrack']).optional().describe('How to bounce (default inPlace); both are undone unless keepBounce'),
+    reference: z.string().optional().describe('Another WAV to compare against'),
+    keepBounce: z.boolean().optional().describe('Leave the bounce in the song instead of undoing it'),
+    plot: z.boolean().optional(),
+  },
+  guard((a) => analyzeTrack(call, a)),
 );
 
 server.tool(

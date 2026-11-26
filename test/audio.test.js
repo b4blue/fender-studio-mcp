@@ -6,7 +6,7 @@ import { execFileSync } from 'node:child_process';
 import { existsSync, mkdtempSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { capture, analyze, audioCapabilities, python } from '../src/audio.js';
+import { capture, analyze, audioCapabilities, analyzeTrack, python } from '../src/audio.js';
 
 function bridge({ playing = false, recording = false, click = true, precount = false } = {}) {
   const calls = [];
@@ -83,6 +83,31 @@ test('on Windows: runs the WASAPI loopback capturer (no --pid), warns on near-si
   const quiet = await capture(bridge({ playing: true }).call, { seconds: 2, out: '/tmp/q.wav' }, win([], { file: '/tmp/q.wav', frames: 96000, peakDb: -144 }));
   assert.match(quiet.warning, /ASIO/);
   assert.equal(quiet.recommend, 'bounce');
+});
+
+test('analyzeTrack: bounces, analyzes the rendered wav, then undoes the bounce', async () => {
+  const calls = [];
+  const call = async (op) => { calls.push(op); return {}; };
+  const doBounce = async (_c, a) => ({ track: a.track, mode: a.mode, wav: '/songs/Song/Bounces/Gtr.wav' });
+  const doAnalyze = async ({ file }) => ({ file, loudness: { integratedLufs: -12 } });
+  const r = await analyzeTrack(call, { track: 'Gtr', plot: false }, { doBounce, doAnalyze });
+  assert.equal(r.wav, '/songs/Song/Bounces/Gtr.wav');
+  assert.equal(r.bounceUndone, true);
+  assert.equal(r.analysis.loudness.integratedLufs, -12);
+  assert.ok(calls.includes('undo'), 'the bounce is undone so the song is unchanged');
+
+  // keepBounce leaves it in place (no undo).
+  const kept = [];
+  await analyzeTrack(async (op) => (kept.push(op), {}), { track: 'Gtr', keepBounce: true }, { doBounce, doAnalyze });
+  assert.ok(!kept.includes('undo'));
+
+  // No wav (unsaved song) -> error, and still undone.
+  const undo = [];
+  await assert.rejects(
+    analyzeTrack(async (op) => (undo.push(op), {}), { track: 'Gtr' }, { doBounce: async () => ({ wav: null }), doAnalyze }),
+    /save the song/,
+  );
+  assert.ok(undo.includes('undo'));
 });
 
 test('audioCapabilities: macOS taps the process; Windows depends on a loopback endpoint', async () => {
