@@ -6,7 +6,7 @@ import { execFileSync } from 'node:child_process';
 import { existsSync, mkdtempSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { capture, analyze, python } from '../src/audio.js';
+import { capture, analyze, audioCapabilities, python } from '../src/audio.js';
 
 function bridge({ playing = false, recording = false, click = true, precount = false } = {}) {
   const calls = [];
@@ -78,9 +78,35 @@ test('on Windows: runs the WASAPI loopback capturer (no --pid), warns on near-si
   assert.deepEqual(runs[0], [process.execPath, '--seconds', '2', '--out', '/tmp/w.wav', '--rate', '48000']);
   assert.ok(!runs[0].includes('--pid'), 'the WASAPI capturer loops back a device, not a process');
   assert.equal(r.warning, undefined, 'no warning when the capture has signal');
-  // Near-silence -> the ASIO-bypass hint.
+  assert.equal(r.recommend, undefined, 'no bounce recommendation when the capture has signal');
+  // Near-silence -> the ASIO-bypass hint plus a structured recommendation to bounce.
   const quiet = await capture(bridge({ playing: true }).call, { seconds: 2, out: '/tmp/q.wav' }, win([], { file: '/tmp/q.wav', frames: 96000, peakDb: -144 }));
   assert.match(quiet.warning, /ASIO/);
+  assert.equal(quiet.recommend, 'bounce');
+});
+
+test('audioCapabilities: macOS taps the process; Windows depends on a loopback endpoint', async () => {
+  const mac = await audioCapabilities({ platform: 'darwin', bin: process.execPath });
+  assert.equal(mac.captureBackend, 'coreaudio-process-tap');
+  assert.equal(mac.recommended, 'capture');
+
+  // Windows with an endpoint -> capture is a candidate (ASIO still verified at runtime).
+  const withEp = await audioCapabilities({
+    platform: 'win32', py: process.execPath, cap: process.execPath,
+    run: async () => ({ loopbackEndpoints: ['Speakers'], defaultSpeaker: 'Speakers' }),
+  });
+  assert.deepEqual([withEp.recommended, withEp.canCapture, withEp.loopbackEndpoints], ['capture', true, ['Speakers']]);
+
+  // Windows with no endpoint (e.g. RDP with nothing capturable) -> bounce.
+  const noEp = await audioCapabilities({
+    platform: 'win32', py: process.execPath, cap: process.execPath,
+    run: async () => ({ loopbackEndpoints: [], defaultSpeaker: null }),
+  });
+  assert.equal(noEp.recommended, 'bounce');
+
+  // Windows capturer not built -> bounce.
+  const notReady = await audioCapabilities({ platform: 'win32', py: '/no/such/python', cap: '/no/such/cap' });
+  assert.equal(notReady.recommended, 'bounce');
 });
 
 test('analyzer: known answers for a sine, an anti-phase copy and a wide bass', { skip: !existsSync(python) && 'run npm run build:audio' }, async () => {

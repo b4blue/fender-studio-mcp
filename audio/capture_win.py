@@ -50,13 +50,33 @@ def pick_loopback(device):
         fail("no WASAPI loopback device available")
 
 
+def list_endpoints():
+    # Enumerate the WASAPI loopback endpoints (render devices we can record from).
+    mics = sc.all_microphones(include_loopback=True)
+    loop = [m for m in mics if getattr(m, "isloopback", False)]
+    try:
+        default_name = sc.default_speaker().name
+    except Exception:
+        default_name = None
+    print(json.dumps({
+        "loopbackEndpoints": [m.name for m in loop],
+        "defaultSpeaker": default_name,
+    }))
+
+
 def main():
     ap = argparse.ArgumentParser()
-    ap.add_argument("--seconds", type=float, required=True)
-    ap.add_argument("--out", required=True)
+    ap.add_argument("--list", action="store_true", help="print the loopback endpoints as JSON and exit")
+    ap.add_argument("--seconds", type=float)
+    ap.add_argument("--out")
     ap.add_argument("--device", default=None, help="substring of the render device to loop back")
     ap.add_argument("--rate", type=int, default=48000)
     a = ap.parse_args()
+    if a.list:
+        list_endpoints()
+        return
+    if a.seconds is None or a.out is None:
+        fail("--seconds and --out are required (or pass --list)")
     if not (a.seconds > 0):
         fail("--seconds must be > 0")
 

@@ -31,7 +31,7 @@ import { bounce } from './bounce.js';
 import { diffSongs } from './diff.js';
 import { gridBeats } from './grid.js';
 import { version } from './version.js';
-import { capture, analyze } from './audio.js';
+import { capture, analyze, audioCapabilities } from './audio.js';
 
 const json = (value) => ({ content: [{ type: 'text', text: JSON.stringify(value, null, 1) }] });
 const fail = (message) => ({ content: [{ type: 'text', text: message }], isError: true });
@@ -437,6 +437,13 @@ server.tool(
 );
 
 server.tool(
+  'audio_capabilities',
+  "Which audio-capture method to use on this machine, so you can pick before trying. Returns the capture backend, whether it is set up, any WASAPI loopback endpoints (Windows), and a recommended method: \"capture\" (audio_capture — real-time, the full stereo output) or \"bounce\" (live_bounce one track to a WAV, then audio_analyze — offline, driver-independent, per track only). On Windows it cannot read Studio One's audio driver, so \"capture\" is only a candidate: an exclusive ASIO output bypasses WASAPI loopback and a capture comes back near-silent (audio_capture then returns recommend:\"bounce\"). Call this first; fall back to bounce when it says so or when a capture is near-silent.",
+  {},
+  guard(() => audioCapabilities()),
+);
+
+server.tool(
   'live_meters',
   'Peak meters of every mixer channel in dB (-144 = silence). With duration_ms, samples repeatedly (e.g. while playing) and returns the highest peak per channel, plus which channels clipped (above -0.1 dB).',
   { duration_ms: z.number().int().optional() },
@@ -622,7 +629,7 @@ server.tool(
 
 server.tool(
   'live_bounce',
-  "Bounce all events on one track in the running Studio One: inPlace renders them into a single new event (with plug-ins), toNewTrack renders them onto a new track of the same name and mutes the originals. No dialogs; one live_undo reverts it, but the rendered .wav stays in the song's Bounces folder. Exporting a mixdown or stems is not offered: those open dialogs.",
+  "Bounce all events on one track in the running Studio One: inPlace renders them into a single new event (with plug-ins), toNewTrack renders them onto a new track of the same name and mutes the originals. No dialogs; one live_undo reverts the edit, but the rendered .wav stays in the song's Bounces folder. Returns wav: the path to that rendered file — pass it to audio_analyze. This is the driver-independent way to measure audio on Windows (an offline render, so it works even with an ASIO output), but it is one track's audio with its own inserts, not the full stereo mix. Exporting a mixdown or stems is not offered: those open dialogs (analyze a manual Export Mixdown WAV if you need the whole mix).",
   { track: z.string(), mode: z.enum(['inPlace', 'toNewTrack']).optional() },
   guard((a) => bounce(call, a)),
 );
